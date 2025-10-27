@@ -47,7 +47,7 @@ jobs:
 
       - name: Build site
         env:
-            MY_PASSWORD: ${{ secrets.MY_PASSWORD }}
+            PUBLIC_PASSWORD: ${{ secrets.PUBLIC_PASSWORD }}
         run: npx astro build
 
       - name: Deploy to GitHub Pages
