@@ -1,0 +1,2 @@
+local_rel,local_ext,all_expected_keys,matched,match_type,matched_prefix,matched_key,remote_ext,same_ext,note
+1oemhsx.jpeg,.jpeg,Images/1oemhsx.jpeg | RedGiphys/1oemhsx.jpeg | Gifs/1oemhsx.jpeg | Videos/1oemhsx.jpeg,False,missing,,,,False,missing
