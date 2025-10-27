@@ -19,8 +19,8 @@
         "node.js": "^0.0.1-security"
     },
     "devDependencies": {
-        "@astrojs/react": "^4.3.0",
-        "astro": "^5.13.5",
+        "@astrojs/react": "^4.4.0",
+        "astro": "^5.15.1",
         "dotenv": "^17.2.2",
         "react": "^19.1.1",
         "react-dom": "^19.1.1"
