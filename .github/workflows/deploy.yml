@@ -33,8 +33,6 @@ jobs:
 
       - name: Generate manifest & indexes
         env:
-            PASSWORD: ${{ secrets.PASSWORD }}
-            
             R2_ENDPOINTS: ${{ secrets.R2_ENDPOINTS }}
             R2_ACCESS_KEY_IDS: ${{ secrets.R2_ACCESS_KEY_IDS }}
             R2_SECRET_ACCESS_KEYS: ${{ secrets.R2_SECRET_ACCESS_KEYS }}
@@ -48,6 +46,8 @@ jobs:
         run: node scripts/generate-manifest.js
 
       - name: Build site
+        env:
+            MY_PASSWORD: ${{ secrets.MY_PASSWORD }}
         run: npx astro build
 
       - name: Deploy to GitHub Pages

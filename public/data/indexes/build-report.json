@@ -2,21 +2,6 @@
   "posts": 9,
   "warnings": [
     {
-      "id": "1n6n5r3",
-      "note": "Media post lacks an image preview (no still/poster/ladder).",
-      "type": "preview"
-    },
-    {
-      "id": "1oew9bz",
-      "note": "Media post lacks an image preview (no still/poster/ladder).",
-      "type": "preview"
-    },
-    {
-      "id": "1oewrsc",
-      "note": "Media post lacks an image preview (no still/poster/ladder).",
-      "type": "preview"
-    },
-    {
       "id": "1n7w28s",
       "note": "No media_items produced for post; will be treated as text.",
       "type": "none"
