@@ -28,15 +28,13 @@ jobs:
           R2_ACCESS_KEY_IDS: ${{ secrets.R2_ACCESS_KEY_IDS }}
           R2_SECRET_ACCESS_KEYS: ${{ secrets.R2_SECRET_ACCESS_KEYS }}
           # Optional caching:
-          R2_OBJECTS_CACHE: data/r2_objects.json
-          R2_SKIP_LIST: "0"
+          R2_OBJECTS_CACHE: ${{ vars.R2_OBJECTS_CACHE }}
+          R2_SKIP_LIST: ${{ vars.R2_SKIP_LIST }}
           # ---- Public bases (not secret) ----
           PUBLIC_MEDIA_BASES: ${{ vars.PUBLIC_MEDIA_BASES }}    # e.g. "https://worker-a.example.com/,https://worker-b.example.com/"
           # or use PUBLIC_MEDIA_BASE: ${{ vars.PUBLIC_MEDIA_BASE }}
-          # ---- Astro base if using GitHub Pages repo ----
-          BASE_URL: /media-archive/
           # Posters optional:
-          ENABLE_LOCAL_POSTERS: "0"
+          ENABLE_LOCAL_POSTERS: ${{ vars.ENABLE_LOCAL_POSTERS }}
         run: node scripts/generate-manifest.js
 
       - name: Build site
