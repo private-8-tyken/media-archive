@@ -1,13 +1,18 @@
-name: Build & Deploy
+# .github/workflows/deploy.yml
+name: Build & Deploy (Astro + manifest)
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: write  # needed to push to gh-pages
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment: github-pages
     steps:
       - uses: actions/checkout@v4
 
@@ -15,37 +20,35 @@ jobs:
         with:
           node-version: 20
 
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Verify ffmpeg
+        run: |
+            which ffmpeg
+            ffmpeg -version
+
       - name: Install deps
-        run: npm ci
+        run: npm ci || npm i
 
-      - name: Build manifest (merge all buckets)
+      - name: Generate manifest & indexes
         env:
-          PASSWORD: ${{ secrets.PASSWORD }}
+            PASSWORD: ${{ secrets.PASSWORD }}
+            
+            R2_ENDPOINTS: ${{ secrets.R2_ENDPOINTS }}
+            R2_ACCESS_KEY_IDS: ${{ secrets.R2_ACCESS_KEY_IDS }}
+            R2_SECRET_ACCESS_KEYS: ${{ secrets.R2_SECRET_ACCESS_KEYS }}
+            R2_BUCKETS: ${{ secrets.R2_BUCKETS }}
+            PUBLIC_MEDIA_BASES: ${{ secrets.PUBLIC_MEDIA_BASES }}
 
-          # ---- R2 (secrets) ----
-          R2_BUCKETS: ${{ secrets.R2_BUCKETS }}                # e.g. "media-archive,media-backup"
-          R2_ENDPOINTS: ${{ secrets.R2_ENDPOINTS }}            # e.g. "https://acc1...,https://acc2..."
-          R2_ACCESS_KEY_IDS: ${{ secrets.R2_ACCESS_KEY_IDS }}
-          R2_SECRET_ACCESS_KEYS: ${{ secrets.R2_SECRET_ACCESS_KEYS }}
-          # Optional caching:
-          R2_OBJECTS_CACHE: data/r2_objects.json
-          R2_SKIP_LIST: "0"
-          # ---- Public bases (not secret) ----
-          PUBLIC_MEDIA_BASES: ${{ vars.PUBLIC_MEDIA_BASES }}    # e.g. "https://worker-a.example.com/,https://worker-b.example.com/"
-          # or use PUBLIC_MEDIA_BASE: ${{ vars.PUBLIC_MEDIA_BASE }}
-          # ---- Astro base if using GitHub Pages repo ----
-          BASE_URL: /media-archive/
-          # Posters optional:
-          ENABLE_LOCAL_POSTERS: "0"
+            R2_OBJECTS_CACHE: ${{ vars.R2_OBJECTS_CACHE }}
+            R2_SKIP_LIST: ${{ vars.R2_SKIP_LIST }}
+
+            ENABLE_LOCAL_POSTERS: ${{ vars.ENABLE_LOCAL_POSTERS }}
         run: node scripts/generate-manifest.js
 
       - name: Build site
-        env:
-          # Astro only needs PUBLIC_* at build/client time
-          PUBLIC_MEDIA_BASES: ${{ vars.PUBLIC_MEDIA_BASES }}
-          # If you prefer single:
-          # PUBLIC_MEDIA_BASE: ${{ vars.PUBLIC_MEDIA_BASE }}
-        run: npm run build
+        run: npx astro build
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
