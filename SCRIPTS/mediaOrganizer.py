@@ -232,6 +232,16 @@ def organize_downloads(
                     continue
                 elif conflict == "rename":
                     dest = _next_nonconflicting(dest)
+                elif conflict == "move_existing":
+                    # Move the source file to AlreadyMoved/
+                    rel = src.relative_to(out_dir)
+                    already_dir = out_dir / "AlreadyMoved" / rel.parent
+                    already_dir.mkdir(parents=True, exist_ok=True)
+                    alt_path = already_dir / src.name
+                    shutil.move(str(src), str(alt_path))
+                    stats["skipped"] = int(stats["skipped"]) + 1
+                    print(f"[SKIPPED→AlreadyMoved] {src.name} → {alt_path}")
+                    continue
 
             if dry_run:
                 continue
@@ -278,7 +288,7 @@ if __name__ == "__main__":
     p.add_argument("input_dir", help="Directory containing downloaded files (galleries as subfolders).")
     p.add_argument("--output-dir", help="Destination root (default: organize in-place under input_dir).")
     p.add_argument("--strategy", choices=["move", "copy", "link"], default="move", help="How to materialize organized files.")
-    p.add_argument("--conflict", choices=["skip", "rename"], default="rename", help="On name conflicts at destination.")
+    p.add_argument( "--conflict", choices=["skip", "rename", "move_existing"], default="rename", help="On name conflicts at destination." )
     p.add_argument("--no-progress", action="store_true", help="Disable tqdm progress bar.")
     p.add_argument("--dry-run", action="store_true", help="Plan only; do not modify files.")
     p.add_argument("--no-prune", action="store_true", help="Do not delete empty folders from input_dir after moving.")
