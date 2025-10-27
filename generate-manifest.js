@@ -24,49 +24,30 @@
 // - mediaKinds facet counts each kind found in media_types (union), replacing old single-type facet.
 //
 // Env (required):
-//   Either plural (multi-bucket) or singular (one bucket) variables:
-//
-//   R2_ENDPOINTS            = "https://acc1.r2.cloudflarestorage.com,https://acc2.r2.cloudflarestorage.com"
-//   R2_ACCESS_KEY_IDS       = "key1,key2"
-//   R2_SECRET_ACCESS_KEYS   = "secret1,secret2"
-//   R2_BUCKETS              = "media-archive,media-backup"
-//   PUBLIC_MEDIA_BASES      = "https://worker-a.example.com/,https://worker-b.example.com/"
-//
-//   (Singular fallbacks if you only use one bucket)
 //   R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET
-//   PUBLIC_MEDIA_BASE       = "https://one-worker-for-all.example.com/"   // MUST end with '/'
-//
+//   PUBLIC_MEDIA_BASE   = "https://<your-worker>/"   // MUST end with '/'
 // Optional:
-//   R2_OBJECTS_CACHE        = "data/r2_objects.json"
-//   R2_SKIP_LIST            = "1"                        // read cache instead of R2
-//   ENABLE_LOCAL_POSTERS    = "1"                        // ffmpeg+sharp poster generation for motion-only posts
-//   POSTER_WIDTHS           = "240,360,480,720"
-//   POSTER_FORMATS          = "avif,webp,jpeg"           // priority order; writes only the first that works
-//   POSTER_QUALITY_AVIF     = "50"
-//   POSTER_QUALITY_WEBP     = "74"
-//   POSTER_QUALITY_JPEG     = "78"
-
-try { await import("dotenv/config"); } catch { }
-
-import { promises as fs } from "node:fs";
-import path from "node:path";
-import { S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
+//   R2_OBJECTS_CACHE    = "data/r2_objects.json"
+//   R2_SKIP_LIST        = "1"                        // read cache instead of R2
+//   ENABLE_LOCAL_POSTERS= "1"                        // ffmpeg+sharp poster generation for motion-only posts
+//   POSTER_WIDTHS       = "240,360,480,720"
+//   POSTER_FORMATS      = "avif,webp,jpeg"           // priority order; writes only the first that works
+//   POSTER_QUALITY_AVIF = "50"
+//   POSTER_QUALITY_WEBP = "74"
+//   POSTER_QUALITY_JPEG = "78"
 
 console.log("ENV present:",
-    // public bases
-    !!process.env.PUBLIC_MEDIA_BASE,
-    !!process.env.PUBLIC_MEDIA_BASES,
-    // singular
     !!process.env.R2_ENDPOINT,
     !!process.env.R2_ACCESS_KEY_ID,
     !!process.env.R2_SECRET_ACCESS_KEY,
     !!process.env.R2_BUCKET,
-    // plural
-    !!process.env.R2_ENDPOINTS,
-    !!process.env.R2_ACCESS_KEY_IDS,
-    !!process.env.R2_SECRET_ACCESS_KEYS,
-    !!process.env.R2_BUCKETS,
+    !!process.env.PUBLIC_MEDIA_BASE
 );
+
+import { promises as fs } from "node:fs";
+import path from "node:path";
+import { S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
+try { await import("dotenv/config"); } catch { }
 
 const ROOT = process.cwd();
 const INPUT_DIR = path.resolve(ROOT, "data/posts");
@@ -76,33 +57,17 @@ const ORDERED_CSV = path.resolve(ROOT, "data/ordered_posts.csv");
 await fs.mkdir(INDEX_OUT_DIR, { recursive: true });
 await fs.mkdir(POSTS_PUBLIC_DIR, { recursive: true });
 
-/** ---------- ENV: multi-bucket + per-bucket bases ---------- */
-// Accept either one base for all, or a list aligned to buckets
-const PUBLIC_MEDIA_BASES = (process.env.PUBLIC_MEDIA_BASES || "")
-    .split(",").map(s => s.trim()).filter(Boolean)
-    .map(s => s.replace(/\/?$/, "/"));
+/** ---------- ENV ---------- */
+const PUBLIC_MEDIA_BASE_RAW = process.env.PUBLIC_MEDIA_BASE || "";
+const PUBLIC_MEDIA_BASE = PUBLIC_MEDIA_BASE_RAW ? PUBLIC_MEDIA_BASE_RAW.replace(/\/?$/, "/") : "";
+const MEDIA_BASE_OK = !!PUBLIC_MEDIA_BASE;
 
-const SINGLE_MEDIA_BASE = (process.env.PUBLIC_MEDIA_BASE || "").trim().replace(/\/?$/, "/");
-const HAS_SINGLE_BASE = !!SINGLE_MEDIA_BASE;
-
-const R2_ENDPOINTS = (process.env.R2_ENDPOINTS || process.env.R2_ENDPOINT || "")
-    .split(",").map(s => s.trim()).filter(Boolean);
-const R2_ACCESS_KEY_IDS = (process.env.R2_ACCESS_KEY_IDS || process.env.R2_ACCESS_KEY_ID || "")
-    .split(",").map(s => s.trim()).filter(Boolean);
-const R2_SECRET_ACCESS_KEYS = (process.env.R2_SECRET_ACCESS_KEYS || process.env.R2_SECRET_ACCESS_KEY || "")
-    .split(",").map(s => s.trim()).filter(Boolean);
-const R2_BUCKETS = (process.env.R2_BUCKETS || process.env.R2_BUCKET || "")
-    .split(",").map(s => s.trim()).filter(Boolean);
-
+const R2_ENDPOINT = process.env.R2_ENDPOINT || "";
+const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || "";
+const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || "";
+const R2_BUCKET = process.env.R2_BUCKET || "";
 const R2_OBJECTS_CACHE = process.env.R2_OBJECTS_CACHE || path.resolve(ROOT, "data/r2_objects.json");
 const R2_SKIP_LIST = process.env.R2_SKIP_LIST === "1";
-
-// Helper to pick public base for a bucket index
-function mediaBaseFor(i) {
-    if (PUBLIC_MEDIA_BASES.length) return PUBLIC_MEDIA_BASES[i] || "";
-    if (HAS_SINGLE_BASE) return SINGLE_MEDIA_BASE;
-    return ""; // offline/private mode (no public URLs)
-}
 
 /** ---------- POSTER CONFIG (single-format ladder) ---------- */
 const ENABLE_LOCAL_POSTERS = process.env.ENABLE_LOCAL_POSTERS === "1";
@@ -313,7 +278,7 @@ async function generateLocalPreviewsFromImage(srcPath, id) {
 async function generatePosterFromVideoUrl(videoUrl, id) {
     let sharpMod = null;
     try { sharpMod = (await import("sharp")).default; }
-    catch { console.warn("⚠️  'sharp' not installed; cannot resize poster from ffmpeg frame."); return { __err: "missing_sharp" }; }
+    catch { console.warn("⚠️  'sharp' not installed; cannot resize poster from ffmpeg frame."); return null; }
 
     const { spawn } = await import("node:child_process");
     const tmpVideo = await downloadToTemp(videoUrl);
@@ -384,86 +349,63 @@ async function buildPreviewBlock({ post, media_items, id }) {
 
 /** ---------- R2 list + index ---------- */
 function assertR2Config() {
-    const n = R2_BUCKETS.length;
-    if (!n) {
-        throw new Error("No R2 buckets configured (set R2_BUCKETS or R2_BUCKET).");
-    }
-    const all = [R2_ENDPOINTS, R2_ACCESS_KEY_IDS, R2_SECRET_ACCESS_KEYS];
-    if (!all.every(arr => arr.length === n)) {
-        throw new Error(
-            `Mismatched R2 config lengths: endpoints=${R2_ENDPOINTS.length}, keys=${R2_ACCESS_KEY_IDS.length}, secrets=${R2_SECRET_ACCESS_KEYS.length}, buckets=${R2_BUCKETS.length}`
-        );
+    if (!R2_ENDPOINT || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_BUCKET) {
+        throw new Error("Missing R2 env: R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET");
     }
 }
-
-// Return [{key, base}] so each object carries its correct public base
 async function listAllR2Keys() {
     if (R2_SKIP_LIST) {
         try {
             const cached = JSON.parse(await fs.readFile(R2_OBJECTS_CACHE, "utf8"));
-            // Back-compat: allow old cache of strings, or new cache of {key, base}
-            if (Array.isArray(cached)) {
-                return cached.map(x =>
-                    typeof x === "string" ? { key: x, base: SINGLE_MEDIA_BASE || "" } :
-                        { key: String(x.key), base: String(x.base || SINGLE_MEDIA_BASE || "") }
-                );
-            }
+            if (Array.isArray(cached)) return cached;
         } catch { }
         throw new Error("R2_SKIP_LIST=1 but no cache file found.");
     }
-
     assertR2Config();
+    const s3 = new S3Client({
+        region: "auto",
+        endpoint: R2_ENDPOINT,
+        credentials: { accessKeyId: R2_ACCESS_KEY_ID, secretAccessKey: R2_SECRET_ACCESS_KEY },
+        forcePathStyle: true,
+    });
 
-    const out = [];
-    const bar = new ProgressBar("Listing R2 objects", R2_BUCKETS.length);
+    const keys = [];
+    let ContinuationToken = undefined;
+    let page = 0;
+    let totalSoFar = 0;
+    const bar = new ProgressBar("Listing R2 objects", 100); // fake total; we just animate
 
-    for (let i = 0; i < R2_BUCKETS.length; i++) {
-        const s3 = new S3Client({
-            region: "auto",
-            endpoint: R2_ENDPOINTS[i],
-            credentials: {
-                accessKeyId: R2_ACCESS_KEY_IDS[i],
-                secretAccessKey: R2_SECRET_ACCESS_KEYS[i],
-            },
-            forcePathStyle: true,
-        });
+    do {
+        const resp = await s3.send(new ListObjectsV2Command({
+            Bucket: R2_BUCKET,
+            ContinuationToken,
+            MaxKeys: 1000,
+        }));
+        const batch = (resp.Contents || []).map(o => o.Key).filter(Boolean);
+        keys.push(...batch);
+        totalSoFar += batch.length;
+        page++;
 
-        const base = mediaBaseFor(i);
-        let ContinuationToken = undefined;
-
-        do {
-            const resp = await s3.send(new ListObjectsV2Command({
-                Bucket: R2_BUCKETS[i],
-                ContinuationToken,
-                MaxKeys: 1000,
-            }));
-            const batch = (resp.Contents || [])
-                .map(o => o.Key)
-                .filter(Boolean)
-                .map(key => ({ key, base }));
-
-            out.push(...batch);
-            ContinuationToken = resp.IsTruncated ? resp.NextContinuationToken : undefined;
-        } while (ContinuationToken);
-
+        bar.label = `Listing R2 objects (${totalSoFar.toLocaleString()} so far)`;
         bar.tick(1);
-    }
 
-    try { await fs.writeFile(R2_OBJECTS_CACHE, JSON.stringify(out, null, 2)); } catch { }
-    return out;
+        ContinuationToken = resp.IsTruncated ? resp.NextContinuationToken : undefined;
+    } while (ContinuationToken);
+
+    bar.set(bar.total);
+    try { await fs.writeFile(R2_OBJECTS_CACHE, JSON.stringify(keys, null, 2)); } catch { }
+    return keys;
 }
 
 /**
  * Index R2 objects for mixed-media galleries with sidecar posters.
- * Accepts key+base pairs so we build URLs with the correct per-bucket base.
- *
  * - Singles (flat): Images/<id>.<ext>, Gifs/<id>.gif, Videos/<id>.mp4, RedGiphys/<id>.mp4
  * - Galleries:      .../<id>/NN.ext   (indices are 2-digit, globally unique per id across folders)
  * - Sidecar posters: Posters/<id>/NN.(avif|webp|jpg|jpeg)
  */
-function buildR2Index(keyPairs /* [{key, base}] */) {
+function buildR2Index(keys) {
     const idx = new Map(); // id -> { singles:{image:[],gif,video,redgiphy}, gallery:{image:[],gif:[],video:[],redgiphy:[]}, posters:Map }
-    const urlFor = (k, base) => (base ? base + k : null);
+    const urlForKey = (k) => MEDIA_BASE_OK ? (PUBLIC_MEDIA_BASE + k) : null;
 
     const ensureRec = (id) => {
         const prev = idx.get(id);
@@ -477,40 +419,40 @@ function buildR2Index(keyPairs /* [{key, base}] */) {
         return rec;
     };
 
-    for (const { key, base } of keyPairs) {
+    for (const key of keys) {
         let m;
 
         // Galleries
         if ((m = key.match(/^Images\/([^/]+)\/(\d{2})\.([a-z0-9]+)$/i))) {
-            const [, id, nnStr, ext] = m; ensureRec(id).gallery.image.push({ n: parseInt(nnStr, 10), url: urlFor(key, base), ext: ext.toLowerCase() }); continue;
+            const [, id, nnStr, ext] = m; ensureRec(id).gallery.image.push({ n: parseInt(nnStr, 10), url: urlForKey(key), ext: ext.toLowerCase() }); continue;
         }
         if ((m = key.match(/^Gifs\/([^/]+)\/(\d{2})\.gif$/i))) {
-            const [, id, nnStr] = m; ensureRec(id).gallery.gif.push({ n: parseInt(nnStr, 10), url: urlFor(key, base) }); continue;
+            const [, id, nnStr] = m; ensureRec(id).gallery.gif.push({ n: parseInt(nnStr, 10), url: urlForKey(key) }); continue;
         }
         if ((m = key.match(/^Videos\/([^/]+)\/(\d{2})\.mp4$/i))) {
-            const [, id, nnStr] = m; ensureRec(id).gallery.video.push({ n: parseInt(nnStr, 10), url: urlFor(key, base) }); continue;
+            const [, id, nnStr] = m; ensureRec(id).gallery.video.push({ n: parseInt(nnStr, 10), url: urlForKey(key) }); continue;
         }
         if ((m = key.match(/^RedGiphys\/([^/]+)\/(\d{2})\.mp4$/i))) {
-            const [, id, nnStr] = m; ensureRec(id).gallery.redgiphy.push({ n: parseInt(nnStr, 10), url: urlFor(key, base) }); continue;
+            const [, id, nnStr] = m; ensureRec(id).gallery.redgiphy.push({ n: parseInt(nnStr, 10), url: urlForKey(key) }); continue;
         }
 
         // Singles
         if ((m = key.match(/^Images\/([^/]+)\.([a-z0-9]+)$/i))) {
-            const [, id, ext] = m; ensureRec(id).singles.image.push({ url: urlFor(key, base), ext: ext.toLowerCase() }); continue;
+            const [, id, ext] = m; ensureRec(id).singles.image.push({ url: urlForKey(key), ext: ext.toLowerCase() }); continue;
         }
         if ((m = key.match(/^Gifs\/([^/]+)\.gif$/i))) {
-            const [, id] = m; ensureRec(id).singles.gif = urlFor(key, base); continue;
+            const [, id] = m; ensureRec(id).singles.gif = urlForKey(key); continue;
         }
         if ((m = key.match(/^Videos\/([^/]+)\.mp4$/i))) {
-            const [, id] = m; ensureRec(id).singles.video = urlFor(key, base); continue;
+            const [, id] = m; ensureRec(id).singles.video = urlForKey(key); continue;
         }
         if ((m = key.match(/^RedGiphys\/([^/]+)\.mp4$/i))) {
-            const [, id] = m; ensureRec(id).singles.redgiphy = urlFor(key, base); continue;
+            const [, id] = m; ensureRec(id).singles.redgiphy = urlForKey(key); continue;
         }
 
         // Sidecar posters (accept avif/webp/jpg/jpeg)
         if ((m = key.match(/^Posters\/([^/]+)\/(\d{2})\.(avif|webp|jpe?g)$/i))) {
-            const [, id, nnStr] = m; ensureRec(id).posters.set(parseInt(nnStr, 10), urlFor(key, base)); continue;
+            const [, id, nnStr] = m; ensureRec(id).posters.set(parseInt(nnStr, 10), urlForKey(key)); continue;
         }
     }
 
@@ -576,14 +518,14 @@ async function loadPosts(rootDir) {
 const posts = await loadPosts(INPUT_DIR);
 
 // List objects (with progress)
-let r2KeyPairs = [];
+let r2Keys = [];
 try {
-    r2KeyPairs = await listAllR2Keys(); // [{key, base}]
-    console.log(`R2: indexed ${r2KeyPairs.length} objects`);
+    r2Keys = await listAllR2Keys();
+    console.log(`R2: indexed ${r2Keys.length} objects`);
 } catch (err) {
     console.warn("⚠️  Could not list R2 objects:", err.message);
 }
-const r2Index = buildR2Index(r2KeyPairs);
+const r2Index = buildR2Index(r2Keys);
 
 const manifest = [];
 const warnings = [];
@@ -693,9 +635,7 @@ for (const p of posts) {
 
     if (!media_preview && preview?.src) media_preview = preview.src;
 
-    // Warn if no media_items (only when you expect public URLs)
-    const anyPublicBase = PUBLIC_MEDIA_BASES.length > 0 || HAS_SINGLE_BASE;
-    if (anyPublicBase && media_items.length === 0) {
+    if (MEDIA_BASE_OK && media_items.length === 0) {
         warnings.push({ id, note: "No media_items produced for post; will be treated as text.", type: "none" });
     }
     if (media_items.length && !media_preview) {

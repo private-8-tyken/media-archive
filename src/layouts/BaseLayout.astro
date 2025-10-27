@@ -1,12 +1,19 @@
 ---
 // src/layouts/BaseLayout.astro
-// Base layout with title, CSS, and optional auth check
 const { title = 'Saved Reddit', requiresAuth = true } = Astro.props;
 const BASE = import.meta.env.BASE_URL || "/";
 
-const MEDIA_BASE = import.meta.env.PUBLIC_MEDIA_BASE || "";
-let MEDIA_ORIGIN = "";
-try { MEDIA_ORIGIN = MEDIA_BASE ? new URL(MEDIA_BASE).origin : ""; } catch {}
+// Accept single or multiple public bases (comma-separated)
+const SINGLE_BASE = (import.meta.env.PUBLIC_MEDIA_BASE || "").trim();
+const MANY_BASES = (import.meta.env.PUBLIC_MEDIA_BASES || "").split(",").map(s => s.trim()).filter(Boolean);
+const MEDIA_BASES = MANY_BASES.length ? MANY_BASES : (SINGLE_BASE ? [SINGLE_BASE] : []);
+
+// Build distinct origins for <link rel="preconnect">
+const MEDIA_ORIGINS = Array.from(new Set(
+  MEDIA_BASES.map(b => {
+    try { return new URL(b.endsWith("/") ? b : b + "/").origin; } catch { return ""; }
+  }).filter(Boolean)
+));
 ---
 
 <html lang="en">
@@ -14,20 +21,20 @@ try { MEDIA_ORIGIN = MEDIA_BASE ? new URL(MEDIA_BASE).origin : ""; } catch {}
     <meta charset="utf-8" />
     <title>{title}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <!-- ✅ CSS path now robust in dev and on GitHub Pages -->
     <link rel="stylesheet" href={`${BASE}styles/global.css`} />
 
-    <!-- Speed up first image connection setup -->
+    <!-- Reddit previews -->
     <link rel="preconnect" href="https://preview.redd.it" crossorigin>
     <link rel="preconnect" href="https://i.redd.it" crossorigin>
-    {MEDIA_ORIGIN && <link rel="preconnect" href={MEDIA_ORIGIN} crossorigin />}
+
+    <!-- R2 worker(s) -->
+    {MEDIA_ORIGINS.map((o) => <link rel="preconnect" href={o} crossorigin />)}
   </head>
   <body>
     {requiresAuth && (
       <script is:inline data-base={BASE}>
         (function(){
           try {
-            // Read the base from the script's data attribute (no JSON stringify needed)
             var BASE = (document.currentScript && document.currentScript.dataset && document.currentScript.dataset.base) || '/';
             var norm = function(s){ return s.endsWith('/') ? s : s + '/'; };
             var isLogin = norm(location.pathname).endsWith(norm(BASE + 'login'));

@@ -16,7 +16,8 @@
         "@aws-sdk/client-s3": "^3.883.0",
         "@types/react": "^19.1.9",
         "@types/react-dom": "^19.1.7",
-        "node.js": "^0.0.1-security"
+        "node.js": "^0.0.1-security",
+        "sharp": "^0.34.4"
     },
     "devDependencies": {
         "@astrojs/react": "^4.4.0",
