@@ -7914,11 +7914,27 @@
     "order_index": 1338,
     "score": 416,
     "num_comments": 17,
-    "media_items": [],
-    "media_types": [],
+    "media_items": [
+      {
+        "index": 1,
+        "kind": "redgiphy",
+        "url": "https://best-media-boy.adventurecast-admiralhacks-r2cloudflare.workers.dev/RedGiphys/1m4b2gg.mp4"
+      }
+    ],
+    "media_types": [
+      "redgiphy"
+    ],
     "gallery_count": null,
-    "media_preview": null,
-    "preview": null,
+    "media_preview": "/previews/1m4b2gg/1m4b2gg@360w.avif",
+    "preview": {
+      "src": "/previews/1m4b2gg/1m4b2gg@360w.avif",
+      "srcset": "/previews/1m4b2gg/1m4b2gg@240w.avif 240w, /previews/1m4b2gg/1m4b2gg@360w.avif 360w, /previews/1m4b2gg/1m4b2gg@480w.avif 480w, /previews/1m4b2gg/1m4b2gg@720w.avif 720w",
+      "sizes": "(max-width: 640px) 44vw, 320px",
+      "w": 480,
+      "h": 854,
+      "source": "local",
+      "format": "avif"
+    },
     "preview_width": null,
     "preview_height": null
   },
